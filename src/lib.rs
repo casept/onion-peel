@@ -1,17 +1,23 @@
 use std::env;
 
-pub mod client;
+mod client;
+mod log;
 mod parsers;
-pub mod log;
-pub mod server;
+mod server;
 mod shared_config;
-mod transport;
 
+pub use client::{Client, TorProxyTypes, UpstreamProxy};
+pub use log::Severity;
+pub use server::{DestinationRelay, Server};
+
+/// This enum represents the sides of the connection that the parent process
+/// may initialize your pluggable transport on.
 pub enum ProtoSide {
     ClientSide,
     ServerSide,
 }
 
+/// Returns the `ProtoSide` that your pluggable transport should operate on.
 pub fn get_side() -> ProtoSide {
     // Determine whether tor wants us to run as a client or server.
     // While this information is not explicitly provided to us, we can infer it based on whether the

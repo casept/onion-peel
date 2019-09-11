@@ -6,35 +6,44 @@ use std::{clone::Clone, env, fs, net::SocketAddr, path};
 use crate::log;
 use crate::shared_config::SharedConfig;
 
+/// `DestinationRelay` represents the relay that the PT server forwards data to once it exits the transport's tunneling and is deobfuscated.
 #[derive(Clone)]
-pub enum Destination {
+pub enum DestinationRelay {
     ORPort(String),
     ExtORPort(String, String),
 }
 
-impl Destination {
+impl DestinationRelay {
+    /// Returns the address of the relay in the format host:port.
     pub fn get_addr(&self) -> String {
         match self {
-            Destination::ORPort(address) => return address.clone(),
-            Destination::ExtORPort(address, _) => return address.clone(),
+            DestinationRelay::ORPort(address) => return address.clone(),
+            DestinationRelay::ExtORPort(address, _) => return address.clone(),
         }
     }
 
+    /// Returns the cookie needed for connecting to a relay via the ExtORPort protocol.
+    /// If the relay is not an ExtORPort relay, this will be `None`.
     pub fn get_cookie(&self) -> Option<String> {
         match self {
-            Destination::ORPort(_) => return None,
-            Destination::ExtORPort(_, cookie) => return Some(cookie.clone()),
+            DestinationRelay::ORPort(_) => return None,
+            DestinationRelay::ExtORPort(_, cookie) => return Some(cookie.clone()),
         }
     }
 }
 
+/// This object is a handle to allow interaction with the parent process by your server-side pluggable transport implementation(s).
+///
+/// It provides methods for both retrieving configuration dictated by the parent process,
+/// as well as telling it about the state of the transport(s).
+#[derive(Clone)]
 pub struct Server {
     shared_config: SharedConfig,
     supported_transports: Vec<String>,
     transports_to_enable: Option<Vec<String>>,
     transport_options: Option<HashMap<String, HashMap<String, String>>>,
     bind_addresses: HashMap<String, Option<SocketAddr>>,
-    destination: Destination,
+    destination: DestinationRelay,
 }
 
 impl Server {
@@ -45,10 +54,13 @@ impl Server {
             transports_to_enable: None,
             transport_options: None,
             bind_addresses: HashMap::new(),
-            destination: Destination::ORPort("0xDEADBEEF".to_string()), // This will always be overridden by init()
+            destination: DestinationRelay::ORPort("0xDEADBEEF".to_string()), // This will always be overridden by init()
         };
     }
 
+    /// Reads the parent processes desired configuration for the server end of your pluggable transport(s).
+    ///
+    /// This will panic if a non-recoverable protocol violation by the parent process occurs.
     pub fn init(supported_transports: Vec<String>) -> Server {
         let mut s = Server::new(supported_transports);
         s.shared_config = SharedConfig::init();
@@ -116,7 +128,7 @@ impl Server {
         match env::var("TOR_PT_ORPORT") {
             Ok(val) => {
                 have_destination = true;
-                s.destination = Destination::ORPort(val.clone());
+                s.destination = DestinationRelay::ORPort(val.clone());
             }
             Err(error) => match error {
                 env::VarError::NotPresent => (), // Is handled while parsing TOR_PT_EXTENDED_SERVER_PORT
@@ -184,7 +196,7 @@ impl Server {
                             );
                         }
                     }
-                    s.destination = Destination::ExtORPort(extended_orport, content);
+                    s.destination = DestinationRelay::ExtORPort(extended_orport, content);
                 }
                 Err(error) => match error {
                     env::VarError::NotPresent => {
@@ -202,51 +214,104 @@ impl Server {
         return s;
     }
 
+    /// Returns the subset of the pluggable transports your server
+    /// advertised as supporting which the parent process actually wants you to initialize.
+    ///
+    /// You are expected to attempt to initialize each of these transports, and report
+    /// the success/failure by calling
+    /// `report_success` or `report_failure` with the name of the transport.
+    /// Once you've done this for all transports, you have to call `report_setup_done`.
     pub fn get_transports_to_initialize(&self) -> Option<Vec<String>> {
+        // TODO: Call `report_setup_done` automatically once all transports are ready/failed
         return self.transports_to_enable.clone();
     }
 
+    /// Calling this will notify the parent process that the pluggable transport `transport`
+    /// has been successfully initialized and is ready to accept clients on the address `bind_addr`.
+    ///
+    /// Via `options`, arbitrary key-value pairs can be passed to the parent process,
+    /// which can in turn pass them on to clients via tor's BridgeDB or another system.
     pub fn report_success(
         &self,
-        transport_name: String,
+        transport: String,
         bind_addr: SocketAddr,
         options: Option<BTreeMap<String, String>>,
     ) {
         match options {
-            None => println!("SMETHOD {} {}", transport_name, bind_addr),
+            None => println!("SMETHOD {} {}", transport, bind_addr),
             Some(opts) => println!(
                 "SMETHOD {} {} ARGS:{}",
-                transport_name,
+                transport,
                 bind_addr,
                 Server::escape_and_format_opts(opts)
             ),
         }
     }
 
+    /// Tells the parent process that the server for `transport_name`
+    /// could not be initialized successfully.
     pub fn report_failure(&self, transport_name: String, error_msg: String) {
+        // TODO: Make report_success for same transport uncallable
+        // TODO: This should be done by creating and returning a `transport` object
         println!("SMETHOD-ERROR {} {}", transport_name, error_msg);
     }
 
+    /// Tells the parent process that the server
+    /// has tried to enable all requested transports, and either succeeded or failed (and reported that for each transport).
     pub fn report_setup_done(&self) {
         println!("SMETHODS DONE");
     }
 
-    pub fn get_destination(&self) -> Destination {
+    /// Returns the (extended) ORPort-compliant destination for all client traffic,
+    /// which is where your server should forward traffic to.
+    ///
+    /// In tor's case, this is usually a tor relay.
+    pub fn get_destination_relay(&self) -> DestinationRelay {
         return self.destination.clone();
     }
 
+    /// Returns the `path` to a directory
+    /// the parent process allows your pluggable transport to store files in.
+    ///
+    /// Note that your transport should not store files anywhere else.
     pub fn get_transport_state_location(&self) -> path::PathBuf {
         return self.shared_config.transport_state_location.clone();
     }
+
+    /// Returns the `SocketAddr` that the PT `transport` should listen for client
+    /// connections on.
+    ///
+    /// If the transport isn't among the transports the parent process has requested
+    /// your pluggable transport to serve, this will return `None`.
     pub fn get_bind_address(&self, transport: String) -> Option<SocketAddr> {
+        // TODO: Be more explicit about error/panic
         return self.bind_addresses[&transport].clone();
     }
 
-    pub fn write_log_message(sev: crate::log::Severity, msg: String) {
+    /// Writes a human-readable log message with severity `sev`.
+    pub fn write_log_message(sev: log::Severity, msg: String) {
         println!("LOG SEVERITY={} MESSAGE={}", sev, msg);
     }
 
-    pub fn write_status_message(transport: String, messages: HashMap<String, String>) {
+    /// Writes a message describing the status of the transport in key-value pairs.
+    ///
+    /// This information is usually not parsed by the parent process, it merely serves to inform the user.
+    ///
+    /// If `transport` is not part of the transports which the parent process requested to enable,
+    /// this will panic.
+    pub fn write_status_message(&self, transport: String, messages: HashMap<String, String>) {
+        if !self
+            .transports_to_enable
+            .as_ref()
+            .unwrap()
+            .contains(&transport)
+        {
+            // TODO: Make this a method of `transport` and make this check obsolete
+            panic!(
+                "Attempt to write status message for unrequested transport {}",
+                transport
+            );
+        }
         let mut concat_messages = String::new();
         for (key, value) in messages {
             concat_messages.push_str(&key);
@@ -282,7 +347,6 @@ impl Server {
 
 // TESTS TESTS TESTS TESTS
 
-// TODO: Test escape_and_format_opts
 #[test]
 fn test_escape_and_format_opts_no_opts() {
     let input: BTreeMap<String, String> = BTreeMap::new();

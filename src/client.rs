@@ -1,13 +1,17 @@
+use crate::log;
 use crate::shared_config::SharedConfig;
+
 use std::clone::Clone;
+use std::collections::HashMap;
 use std::env;
 use std::error::Error;
 use std::fmt;
 use std::net::SocketAddr;
 use std::path;
 use std::str;
-use std::collections::HashMap;
 
+/// Represents the types of proxies that a pluggable transport client may
+/// provide for the tor client to connect through.
 pub enum TorProxyTypes {
     SOCKS5,
     SOCKS4,
@@ -22,6 +26,7 @@ impl fmt::Display for TorProxyTypes {
     }
 }
 
+/// Represents a proxy that the pluggable transport client must send all traffic through.
 #[derive(Default, Clone)]
 pub struct UpstreamProxy {
     pub protocol: String,
@@ -110,6 +115,7 @@ impl str::FromStr for UpstreamProxy {
                 .to_owned();
         }
 
+        // TODO: Getters for fields consumer should have access to
         return Ok(UpstreamProxy {
             protocol: protocol,
             username: username,
@@ -155,6 +161,11 @@ impl fmt::Display for UpstreamProxy {
 
 // TODO: Test UpstreamProxy
 
+/// This object is a handle to allow interaction with the parent process by your client-side pluggable transport implementation(s).
+///
+/// It provides methods for both retrieving configuration dictated by the parent process,
+/// as well as telling it about the state of the transport(s).
+#[derive(Clone)]
 pub struct Client {
     shared_config: SharedConfig,
     supported_transports: Vec<String>,
@@ -172,6 +183,9 @@ impl Client {
         };
     }
 
+    /// Reads the parent processes desired configuration for the client end of your pluggable transport(s).
+    ///
+    /// This will panic if a non-recoverable protocol violation by the parent process occurs.
     pub fn init(supported_transports: Vec<String>) -> Client {
         let mut c = Client::new(supported_transports);
         c.shared_config = SharedConfig::init();
@@ -210,6 +224,9 @@ impl Client {
         return c;
     }
 
+    /// Returns the upstream proxy that your transport(s) must tunnel all traffic through.
+    ///
+    /// If the parent did not specify a proxy, `None` is returned.
     pub fn get_upstream_proxy(&self) -> Option<UpstreamProxy> {
         match &self.upstream_proxy_uri {
             Some(val) => return Some(val.clone()),
@@ -217,14 +234,28 @@ impl Client {
         }
     }
 
+    /// Returns the subset of the pluggable transports your client
+    /// advertised as supporting which the parent process actually wants you to initialize.
+    ///
+    /// You are expected to attempt to initialize each of these transports, and report
+    /// the success/failure by calling
+    /// `report_success` or `report_failure` with the name of the transport.
+    /// Once you've done this for all transports, you have to call `report_setup_done`.
     pub fn get_transports_to_initialize(&self) -> Option<Vec<String>> {
         return self.transports_to_enable.clone();
     }
 
+    /// Returns the `path` to a directory
+    /// the parent process allows your pluggable transport to store files in.
+    ///
+    /// Note that your transport should not store files anywhere else.
     pub fn get_transport_state_location(&self) -> path::PathBuf {
         return self.shared_config.transport_state_location.clone();
     }
 
+    /// Calling this will notify the parent process that the pluggable transport `transport`
+    /// has been successfully initialized and is ready to forward traffic sent to the SOCKS proxy listening on `bind_addr`.
+    /// The proxy must speak the protocol specified by `proxy_type`.
     pub fn report_success(
         &self,
         transport_name: String,
@@ -234,17 +265,31 @@ impl Client {
         println!("CMETHOD {} {} {}", transport_name, proxy_type, bind_addr)
     }
 
+    /// Tells the parent process that the server for `transport_name`
+    /// could not be initialized successfully.
     pub fn report_failure(&self, transport_name: String, error_msg: String) {
         println!("CMETHOD-ERROR {} {}", transport_name, error_msg);
     }
 
+    /// Tells the parent process that the client
+    /// has tried to enable all requested transports, and either succeeded or failed (and reported that for each transport).
+    ///
+    /// At this point, the parent must be able to push traffic through the SOCKS proxies of all successfully started transports.
     pub fn report_setup_done(&self) {
         println!("CMETHODS DONE");
     }
 
-    pub fn write_log_message(sev: crate::log::Severity, msg: String) {
+    /// Writes a human-readable log message with severity `sev`.
+    pub fn write_log_message(sev: log::Severity, msg: String) {
         println!("LOG SEVERITY={} MESSAGE={}", sev, msg);
     }
+
+    /// Writes a message describing the status of the transport in key-value pairs.
+    ///
+    /// This information is usually not parsed by the parent process, it merely serves to inform the user.
+    ///
+    /// If `transport` is not part of the transports which the parent process requested to enable,
+    /// this will panic.
     pub fn write_status_message(transport: String, messages: HashMap<String, String>) {
         let mut concat_messages = String::new();
         for (key, value) in messages {

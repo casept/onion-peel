@@ -1,6 +1,7 @@
 use std::{env, fs, path};
 
 // Shared by both client and server implementations.
+#[derive(Clone)]
 pub(crate) struct SharedConfig {
     pub transport_state_location: path::PathBuf,
     pub exit_on_stdin_close: bool, // TODO: Nice interface for this

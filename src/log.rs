@@ -1,6 +1,7 @@
 use std::fmt;
 use std::fmt::Display;
 
+/// Represents the different levels of severity a log message may have.
 pub enum Severity {
     Error,
     Warning,
@@ -12,11 +13,11 @@ pub enum Severity {
 impl Display for Severity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error => write!(f, "error"),
-            Warning => write!(f, "warning"),
-            Notice => write!(f, "notice"),
-            Info => write!(f, "info"),
-            Debug => write!(f, "debug"),
+            Severity::Error => write!(f, "error"),
+            Severity::Warning => write!(f, "warning"),
+            Severity::Notice => write!(f, "notice"),
+            Severity::Info => write!(f, "info"),
+            Severity::Debug => write!(f, "debug"),
         }
     }
 }
