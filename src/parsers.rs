@@ -215,214 +215,218 @@ pub(crate) fn parse_transports_to_enable(
     }
 }
 
-// Test parse_bind_addresses
-#[test]
-fn test_parse_bind_addresses_multiple_entries() {
-    let addr_string = "obfs3-198.51.100.1:1984,scramblesuit-127.0.0.1:4891".to_string();
-    let mut expected_result: HashMap<String, Option<SocketAddr>> = HashMap::new();
-    expected_result.insert(
-        "obfs3".to_string(),
-        Some("198.51.100.1:1984".parse().unwrap()),
-    );
-    expected_result.insert(
-        "scramblesuit".to_string(),
-        Some("127.0.0.1:4891".parse().unwrap()),
-    );
-    assert_eq!(
-        expected_result,
-        parse_bind_addresses(
-            vec!["obfs3".to_string(), "scramblesuit".to_string()],
-            addr_string
-        )
-    );
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // Test parse_bind_addresses
+    #[test]
+    fn test_parse_bind_addresses_multiple_entries() {
+        let addr_string = "obfs3-198.51.100.1:1984,scramblesuit-127.0.0.1:4891".to_string();
+        let mut expected_result: HashMap<String, Option<SocketAddr>> = HashMap::new();
+        expected_result.insert(
+            "obfs3".to_string(),
+            Some("198.51.100.1:1984".parse().unwrap()),
+        );
+        expected_result.insert(
+            "scramblesuit".to_string(),
+            Some("127.0.0.1:4891".parse().unwrap()),
+        );
+        assert_eq!(
+            expected_result,
+            parse_bind_addresses(
+                vec!["obfs3".to_string(), "scramblesuit".to_string()],
+                addr_string
+            )
+        );
+    }
 
-#[test]
-fn test_parse_bind_addresses_single_entry() {
-    let addr_string = "obfs3-198.51.100.1:1984".to_string();
-    let mut expected_result: HashMap<String, Option<SocketAddr>> = HashMap::new();
-    expected_result.insert(
-        "obfs3".to_string(),
-        Some("198.51.100.1:1984".parse().unwrap()),
-    );
-    assert_eq!(
-        expected_result,
-        parse_bind_addresses(vec!["obfs3".to_string()], addr_string)
-    );
-}
+    #[test]
+    fn test_parse_bind_addresses_single_entry() {
+        let addr_string = "obfs3-198.51.100.1:1984".to_string();
+        let mut expected_result: HashMap<String, Option<SocketAddr>> = HashMap::new();
+        expected_result.insert(
+            "obfs3".to_string(),
+            Some("198.51.100.1:1984".parse().unwrap()),
+        );
+        assert_eq!(
+            expected_result,
+            parse_bind_addresses(vec!["obfs3".to_string()], addr_string)
+        );
+    }
 
-#[test]
-#[should_panic]
-fn test_parse_bind_addresses_invalid_ip() {
-    let addr_string = "obfs3-example.com:1984".to_string();
-    parse_bind_addresses(vec!["obfs3".to_string()], addr_string);
-}
+    #[test]
+    #[should_panic]
+    fn test_parse_bind_addresses_invalid_ip() {
+        let addr_string = "obfs3-example.com:1984".to_string();
+        parse_bind_addresses(vec!["obfs3".to_string()], addr_string);
+    }
 
-#[test]
-#[should_panic]
-fn test_parse_bind_addresses_invalid_port() {
-    let addr_string = "198.51.100.1:DEADF00".to_string();
-    parse_bind_addresses(vec!["obfs3".to_string()], addr_string);
-}
+    #[test]
+    #[should_panic]
+    fn test_parse_bind_addresses_invalid_port() {
+        let addr_string = "198.51.100.1:DEADF00".to_string();
+        parse_bind_addresses(vec!["obfs3".to_string()], addr_string);
+    }
 
-// Test parse_transport_options
-#[test]
-fn test_parse_transport_options_no_options() {
-    assert_eq!(
-        None,
-        parse_transport_options(vec!["transport1".to_string()], "".to_string())
-    );
-}
-#[test]
-fn test_parse_transport_options_single_transport_single_option() {
-    let options = "transport1:key=banana".to_string();
-    let mut expected_result: HashMap<String, HashMap<String, String>> = HashMap::new();
-    let mut transport1_result: HashMap<String, String> = HashMap::new();
-    transport1_result.insert("key".to_string(), "banana".to_string());
-    expected_result.insert("transport1".to_string(), transport1_result);
-    assert_eq!(
-        Some(expected_result),
-        parse_transport_options(vec!["transport1".to_string()], options)
-    );
-}
-#[test]
-fn test_parse_transport_options_single_transport_multiple_options() {
-    let options = "transport1:key=banana;transport1:rule=110;transport1:depth=3".to_string();
-    let mut expected_result: HashMap<String, HashMap<String, String>> = HashMap::new();
-    let mut transport1_result: HashMap<String, String> = HashMap::new();
-    transport1_result.insert("key".to_string(), "banana".to_string());
-    transport1_result.insert("rule".to_string(), "110".to_string());
-    transport1_result.insert("depth".to_string(), "3".to_string());
-    expected_result.insert("transport1".to_string(), transport1_result);
-    assert_eq!(
-        Some(expected_result),
-        parse_transport_options(vec!["transport1".to_string()], options)
-    );
-}
-#[test]
-fn test_parse_transport_options_multiple_transports_single_option() {
-    let options = "transport1:key=banana;transport2:rule=110;transport3:depth=3".to_string();
-    let mut expected_result: HashMap<String, HashMap<String, String>> = HashMap::new();
+    // Test parse_transport_options
+    #[test]
+    fn test_parse_transport_options_no_options() {
+        assert_eq!(
+            None,
+            parse_transport_options(vec!["transport1".to_string()], "".to_string())
+        );
+    }
+    #[test]
+    fn test_parse_transport_options_single_transport_single_option() {
+        let options = "transport1:key=banana".to_string();
+        let mut expected_result: HashMap<String, HashMap<String, String>> = HashMap::new();
+        let mut transport1_result: HashMap<String, String> = HashMap::new();
+        transport1_result.insert("key".to_string(), "banana".to_string());
+        expected_result.insert("transport1".to_string(), transport1_result);
+        assert_eq!(
+            Some(expected_result),
+            parse_transport_options(vec!["transport1".to_string()], options)
+        );
+    }
+    #[test]
+    fn test_parse_transport_options_single_transport_multiple_options() {
+        let options = "transport1:key=banana;transport1:rule=110;transport1:depth=3".to_string();
+        let mut expected_result: HashMap<String, HashMap<String, String>> = HashMap::new();
+        let mut transport1_result: HashMap<String, String> = HashMap::new();
+        transport1_result.insert("key".to_string(), "banana".to_string());
+        transport1_result.insert("rule".to_string(), "110".to_string());
+        transport1_result.insert("depth".to_string(), "3".to_string());
+        expected_result.insert("transport1".to_string(), transport1_result);
+        assert_eq!(
+            Some(expected_result),
+            parse_transport_options(vec!["transport1".to_string()], options)
+        );
+    }
+    #[test]
+    fn test_parse_transport_options_multiple_transports_single_option() {
+        let options = "transport1:key=banana;transport2:rule=110;transport3:depth=3".to_string();
+        let mut expected_result: HashMap<String, HashMap<String, String>> = HashMap::new();
 
-    let mut transport1_result: HashMap<String, String> = HashMap::new();
-    transport1_result.insert("key".to_string(), "banana".to_string());
-    let mut transport2_result: HashMap<String, String> = HashMap::new();
-    transport2_result.insert("rule".to_string(), "110".to_string());
-    let mut transport3_result: HashMap<String, String> = HashMap::new();
-    transport3_result.insert("depth".to_string(), "3".to_string());
+        let mut transport1_result: HashMap<String, String> = HashMap::new();
+        transport1_result.insert("key".to_string(), "banana".to_string());
+        let mut transport2_result: HashMap<String, String> = HashMap::new();
+        transport2_result.insert("rule".to_string(), "110".to_string());
+        let mut transport3_result: HashMap<String, String> = HashMap::new();
+        transport3_result.insert("depth".to_string(), "3".to_string());
 
-    expected_result.insert("transport1".to_string(), transport1_result);
-    expected_result.insert("transport2".to_string(), transport2_result);
-    expected_result.insert("transport3".to_string(), transport3_result);
+        expected_result.insert("transport1".to_string(), transport1_result);
+        expected_result.insert("transport2".to_string(), transport2_result);
+        expected_result.insert("transport3".to_string(), transport3_result);
 
-    let transports = vec![
-        "transport1".to_string(),
-        "transport2".to_string(),
-        "transport3".to_string(),
-    ];
-    assert_eq!(
-        Some(expected_result),
-        parse_transport_options(transports, options)
-    );
-}
-#[test]
-fn test_parse_transport_options_multiple_transports_multiple_options() {
-    let options =
-        "transport1:key=banana;transport1:rule=110;transport2:depth=3;transport2:breadth=foo"
-            .to_string();
+        let transports = vec![
+            "transport1".to_string(),
+            "transport2".to_string(),
+            "transport3".to_string(),
+        ];
+        assert_eq!(
+            Some(expected_result),
+            parse_transport_options(transports, options)
+        );
+    }
+    #[test]
+    fn test_parse_transport_options_multiple_transports_multiple_options() {
+        let options =
+            "transport1:key=banana;transport1:rule=110;transport2:depth=3;transport2:breadth=foo"
+                .to_string();
 
-    let mut expected_result: HashMap<String, HashMap<String, String>> = HashMap::new();
+        let mut expected_result: HashMap<String, HashMap<String, String>> = HashMap::new();
 
-    let mut transport1_result: HashMap<String, String> = HashMap::new();
-    transport1_result.insert("key".to_string(), "banana".to_string());
-    transport1_result.insert("rule".to_string(), "110".to_string());
-    let mut transport2_result: HashMap<String, String> = HashMap::new();
-    transport2_result.insert("depth".to_string(), "3".to_string());
-    transport2_result.insert("breadth".to_string(), "foo".to_string());
+        let mut transport1_result: HashMap<String, String> = HashMap::new();
+        transport1_result.insert("key".to_string(), "banana".to_string());
+        transport1_result.insert("rule".to_string(), "110".to_string());
+        let mut transport2_result: HashMap<String, String> = HashMap::new();
+        transport2_result.insert("depth".to_string(), "3".to_string());
+        transport2_result.insert("breadth".to_string(), "foo".to_string());
 
-    expected_result.insert("transport1".to_string(), transport1_result);
-    expected_result.insert("transport2".to_string(), transport2_result);
+        expected_result.insert("transport1".to_string(), transport1_result);
+        expected_result.insert("transport2".to_string(), transport2_result);
 
-    let supported_transports = vec!["transport1".to_string(), "transport2".to_string()];
-    assert_eq!(
-        Some(expected_result),
-        parse_transport_options(supported_transports, options)
-    );
-}
-#[test]
-fn test_parse_transport_options_escaped_characters() {
-    let options =
-        r#"transport1:key=ba\=nana;transport2:ru\\le=110;transport2:dep\:th=3"#.to_string();
-    let mut expected_result: HashMap<String, HashMap<String, String>> = HashMap::new();
+        let supported_transports = vec!["transport1".to_string(), "transport2".to_string()];
+        assert_eq!(
+            Some(expected_result),
+            parse_transport_options(supported_transports, options)
+        );
+    }
+    #[test]
+    fn test_parse_transport_options_escaped_characters() {
+        let options =
+            r#"transport1:key=ba\=nana;transport2:ru\\le=110;transport2:dep\:th=3"#.to_string();
+        let mut expected_result: HashMap<String, HashMap<String, String>> = HashMap::new();
 
-    let mut transport1_result: HashMap<String, String> = HashMap::new();
-    transport1_result.insert("key".to_string(), "ba=nana".to_string());
-    let mut transport2_result: HashMap<String, String> = HashMap::new();
-    transport2_result.insert(r#"ru\le"#.to_string(), "110".to_string());
-    transport2_result.insert(r#"dep:th"#.to_string(), "3".to_string());
+        let mut transport1_result: HashMap<String, String> = HashMap::new();
+        transport1_result.insert("key".to_string(), "ba=nana".to_string());
+        let mut transport2_result: HashMap<String, String> = HashMap::new();
+        transport2_result.insert(r#"ru\le"#.to_string(), "110".to_string());
+        transport2_result.insert(r#"dep:th"#.to_string(), "3".to_string());
 
-    expected_result.insert("transport1".to_string(), transport1_result);
-    expected_result.insert("transport2".to_string(), transport2_result);
+        expected_result.insert("transport1".to_string(), transport1_result);
+        expected_result.insert("transport2".to_string(), transport2_result);
 
-    let supported_transports = vec!["transport1".to_string(), "transport2".to_string()];
-    assert_eq!(
-        Some(expected_result),
-        parse_transport_options(supported_transports, options)
-    );
-}
-#[test]
-#[should_panic]
-fn test_parse_transport_options_missing_colon_separator() {
-    let options = "transport1key=banana".to_string();
-    let supported_transports = vec!["transport1".to_string()];
-    parse_transport_options(supported_transports, options);
-}
-#[test]
-#[should_panic]
-fn test_parse_transport_options_missing_equals_separator() {
-    let options = "transport1:keybanana".to_string();
-    let supported_transports = vec!["transport1".to_string()];
-    parse_transport_options(supported_transports, options);
-}
+        let supported_transports = vec!["transport1".to_string(), "transport2".to_string()];
+        assert_eq!(
+            Some(expected_result),
+            parse_transport_options(supported_transports, options)
+        );
+    }
+    #[test]
+    #[should_panic]
+    fn test_parse_transport_options_missing_colon_separator() {
+        let options = "transport1key=banana".to_string();
+        let supported_transports = vec!["transport1".to_string()];
+        parse_transport_options(supported_transports, options);
+    }
+    #[test]
+    #[should_panic]
+    fn test_parse_transport_options_missing_equals_separator() {
+        let options = "transport1:keybanana".to_string();
+        let supported_transports = vec!["transport1".to_string()];
+        parse_transport_options(supported_transports, options);
+    }
 
-#[test]
-fn test_parse_transport_options_unsupported_transport() {
-    let options = "transport1:key=banana".to_string();
-    let supported_transports = vec!["transport2".to_string()];
-    assert_eq!(None, parse_transport_options(supported_transports, options));
-}
+    #[test]
+    fn test_parse_transport_options_unsupported_transport() {
+        let options = "transport1:key=banana".to_string();
+        let supported_transports = vec!["transport2".to_string()];
+        assert_eq!(None, parse_transport_options(supported_transports, options));
+    }
 
-// Test get_transports_to_enable
-#[test]
-fn test_get_transports_to_enable_no_transports() {
-    let test_string = "".to_string();
-    let supported_transports = vec!["obfs3".to_string()];
-    assert_eq!(
-        None,
-        parse_transports_to_enable(supported_transports, test_string)
-    );
-}
+    // Test get_transports_to_enable
+    #[test]
+    fn test_get_transports_to_enable_no_transports() {
+        let test_string = "".to_string();
+        let supported_transports = vec!["obfs3".to_string()];
+        assert_eq!(
+            None,
+            parse_transports_to_enable(supported_transports, test_string)
+        );
+    }
 
-#[test]
-fn test_get_transports_to_enable_one_transport() {
-    let test_string = "obfs3,transport2".to_string();
-    let mut expected_result: Vec<String> = Vec::new();
-    expected_result.push("obfs3".to_string());
-    let supported_transports = vec!["obfs3".to_string()];
-    assert_eq!(
-        Some(expected_result),
-        parse_transports_to_enable(supported_transports, test_string)
-    );
-}
-#[test]
-fn test_get_transports_to_enable_multiple_transports() {
-    let test_string = "obfs3,transport1,transport2".to_string();
-    let mut expected_result: Vec<String> = Vec::new();
-    expected_result.push("obfs3".to_string());
-    expected_result.push("transport1".to_string());
-    let supported_transports = vec!["obfs3".to_string(), "transport1".to_string()];
-    assert_eq!(
-        Some(expected_result),
-        parse_transports_to_enable(supported_transports, test_string)
-    );
+    #[test]
+    fn test_get_transports_to_enable_one_transport() {
+        let test_string = "obfs3,transport2".to_string();
+        let mut expected_result: Vec<String> = Vec::new();
+        expected_result.push("obfs3".to_string());
+        let supported_transports = vec!["obfs3".to_string()];
+        assert_eq!(
+            Some(expected_result),
+            parse_transports_to_enable(supported_transports, test_string)
+        );
+    }
+    #[test]
+    fn test_get_transports_to_enable_multiple_transports() {
+        let test_string = "obfs3,transport1,transport2".to_string();
+        let mut expected_result: Vec<String> = Vec::new();
+        expected_result.push("obfs3".to_string());
+        expected_result.push("transport1".to_string());
+        let supported_transports = vec!["obfs3".to_string(), "transport1".to_string()];
+        assert_eq!(
+            Some(expected_result),
+            parse_transports_to_enable(supported_transports, test_string)
+        );
+    }
 }

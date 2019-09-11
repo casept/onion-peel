@@ -1,5 +1,5 @@
+use std::collections::{BTreeMap, HashMap};
 use std::net::SocketAddr;
-use std::collections::{HashMap, BTreeMap};
 
 /// Represents a server-side pluggable transport.
 #[derive(Clone)]
@@ -19,7 +19,7 @@ impl ServerTransport {
             status_reported: false,
             options: None,
             bind_address: None,
-        }
+        };
     }
 
     pub(crate) fn set_should_enable(&mut self, val: bool) {
@@ -131,41 +131,58 @@ impl ServerTransport {
     }
 }
 
-// TESTS TESTS TESTS TESTS
-
-#[test]
-fn test_escape_and_format_opts_no_opts() {
-    let input: BTreeMap<String, String> = BTreeMap::new();
-    let expected_output = "";
-    assert_eq!(expected_output, ServerTransport::escape_and_format_opts(input));
-}
-#[test]
-fn test_escape_and_format_opts_single_opt() {
-    let mut input: BTreeMap<String, String> = BTreeMap::new();
-    input.insert("key1".to_string(), "value1".to_string());
-    let expected_output = "key1=value1";
-    assert_eq!(expected_output, ServerTransport::escape_and_format_opts(input));
-}
-#[test]
-fn test_escape_and_format_opts_multiple_opts() {
-    let mut input: BTreeMap<String, String> = BTreeMap::new();
-    input.insert("key1".to_string(), "value1".to_string());
-    input.insert("key2".to_string(), "value2".to_string());
-    let expected_output = "key1=value1,key2=value2";
-    assert_eq!(expected_output, ServerTransport::escape_and_format_opts(input));
-}
-#[test]
-fn test_escape_and_format_opts_single_opt_escaped() {
-    let mut input: BTreeMap<String, String> = BTreeMap::new();
-    input.insert(r#"key=1"#.to_string(), r#"value=1"#.to_string());
-    let expected_output = r#"key\=1=value\=1"#;
-    assert_eq!(expected_output, ServerTransport::escape_and_format_opts(input));
-}
-#[test]
-fn test_escape_and_format_opts_multiple_opts_escaped() {
-    let mut input: BTreeMap<String, String> = BTreeMap::new();
-    input.insert(r#"key,2"#.to_string(), r#"value,2"#.to_string());
-    input.insert(r#"key=1"#.to_string(), r#"value=1"#.to_string());
-    let expected_output = r#"key\=1=value\=1,key\,2=value\,2"#;
-    assert_eq!(expected_output, ServerTransport::escape_and_format_opts(input));
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_escape_and_format_opts_no_opts() {
+        let input: BTreeMap<String, String> = BTreeMap::new();
+        let expected_output = "";
+        assert_eq!(
+            expected_output,
+            ServerTransport::escape_and_format_opts(input)
+        );
+    }
+    #[test]
+    fn test_escape_and_format_opts_single_opt() {
+        let mut input: BTreeMap<String, String> = BTreeMap::new();
+        input.insert("key1".to_string(), "value1".to_string());
+        let expected_output = "key1=value1";
+        assert_eq!(
+            expected_output,
+            ServerTransport::escape_and_format_opts(input)
+        );
+    }
+    #[test]
+    fn test_escape_and_format_opts_multiple_opts() {
+        let mut input: BTreeMap<String, String> = BTreeMap::new();
+        input.insert("key1".to_string(), "value1".to_string());
+        input.insert("key2".to_string(), "value2".to_string());
+        let expected_output = "key1=value1,key2=value2";
+        assert_eq!(
+            expected_output,
+            ServerTransport::escape_and_format_opts(input)
+        );
+    }
+    #[test]
+    fn test_escape_and_format_opts_single_opt_escaped() {
+        let mut input: BTreeMap<String, String> = BTreeMap::new();
+        input.insert(r#"key=1"#.to_string(), r#"value=1"#.to_string());
+        let expected_output = r#"key\=1=value\=1"#;
+        assert_eq!(
+            expected_output,
+            ServerTransport::escape_and_format_opts(input)
+        );
+    }
+    #[test]
+    fn test_escape_and_format_opts_multiple_opts_escaped() {
+        let mut input: BTreeMap<String, String> = BTreeMap::new();
+        input.insert(r#"key,2"#.to_string(), r#"value,2"#.to_string());
+        input.insert(r#"key=1"#.to_string(), r#"value=1"#.to_string());
+        let expected_output = r#"key\=1=value\=1,key\,2=value\,2"#;
+        assert_eq!(
+            expected_output,
+            ServerTransport::escape_and_format_opts(input)
+        );
+    }
 }
