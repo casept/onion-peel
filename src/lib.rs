@@ -1,14 +1,22 @@
 use std::env;
 
 mod client;
+mod client_transport;
 mod log;
 mod parsers;
 mod server;
+mod server_transport;
 mod shared_config;
+mod upstream_proxy;
+mod tor_proxy;
 
-pub use client::{Client, TorProxyTypes, UpstreamProxy};
+pub use client::Client;
+pub use tor_proxy::TorProxyTypes;
+pub use upstream_proxy::UpstreamProxy;
+pub use client_transport::ClientTransport;
 pub use log::Severity;
 pub use server::{DestinationRelay, Server};
+pub use server_transport::ServerTransport;
 
 /// This enum represents the sides of the connection that the parent process
 /// may initialize your pluggable transport on.

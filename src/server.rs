@@ -1,12 +1,12 @@
-use std::collections::BTreeMap;
-use std::collections::HashMap;
 use std::io::prelude::*;
-use std::{clone::Clone, env, fs, net::SocketAddr, path};
+use std::{clone::Clone, env, fs, path};
 
 use crate::log;
+use crate::parsers;
+use crate::server_transport::ServerTransport;
 use crate::shared_config::SharedConfig;
 
-/// `DestinationRelay` represents the relay that the PT server forwards data to once it exits the transport's tunneling and is deobfuscated.
+/// Represents the relay that the PT server forwards data to once it exits the transport's tunneling and is deobfuscated.
 #[derive(Clone)]
 pub enum DestinationRelay {
     ORPort(String),
@@ -39,23 +39,24 @@ impl DestinationRelay {
 #[derive(Clone)]
 pub struct Server {
     shared_config: SharedConfig,
-    supported_transports: Vec<String>,
-    transports_to_enable: Option<Vec<String>>,
-    transport_options: Option<HashMap<String, HashMap<String, String>>>,
-    bind_addresses: HashMap<String, Option<SocketAddr>>,
+    transports: Vec<ServerTransport>,
     destination: DestinationRelay,
 }
 
 impl Server {
     fn new(supported_transports: Vec<String>) -> Server {
-        return Server {
+        let mut server = Server {
             shared_config: SharedConfig::new(),
-            supported_transports: supported_transports,
-            transports_to_enable: None,
-            transport_options: None,
-            bind_addresses: HashMap::new(),
+            transports: Vec::new(),
+            // TODO: Make this field an Option
             destination: DestinationRelay::ORPort("0xDEADBEEF".to_string()), // This will always be overridden by init()
         };
+
+        for transport_name in supported_transports {
+            server.transports.push(ServerTransport::new(transport_name));
+        }
+
+        return server;
     }
 
     /// Reads the parent processes desired configuration for the server end of your pluggable transport(s).
@@ -68,15 +69,26 @@ impl Server {
         // Check which transports the parent process wants us to enable
         match env::var("TOR_PT_SERVER_TRANSPORTS") {
             Ok(val) => {
-                match crate::parsers::parse_transports_to_enable(
-                    s.supported_transports.clone(),
-                    val,
-                ) {
-                    Some(val1) => s.transports_to_enable = Some(val1),
+                let mut transport_names: Vec<String> = Vec::new();
+                for transport in &s.transports {
+                    transport_names.push(transport.name.clone());
+                }
+                match parsers::parse_transports_to_enable(transport_names, val) {
+                    Some(val1) => {
+                        for transport_to_enable in val1 {
+                            for transport in &mut s.transports {
+                                if transport.name == transport_to_enable {
+                                    transport.set_should_enable(true);
+                                    break;
+                                }
+                            }
+                        }
+                    }
                     None => {
                         // The spec requires us to send this after we've finished initializing every transport we're capable of handling.
                         // In this case, there are none so we send it immediately.
                         println!("SMETHODS DONE");
+                        // TODO: More robust error handling
                         panic!("Parent process didn't ask us to enable a transport we support, exiting!");
                     }
                 }
@@ -96,8 +108,22 @@ impl Server {
         // Parse the list of arguments to the various transports provided by the parent process
         match env::var("TOR_PT_SERVER_TRANSPORT_OPTIONS") {
             Ok(val) => {
-                s.transport_options =
-                    crate::parsers::parse_transport_options(s.supported_transports.clone(), val)
+                let mut transport_names: Vec<String> = Vec::new();
+                for transport in &s.transports {
+                    transport_names.push(transport.name.clone());
+                }
+                match parsers::parse_transport_options(transport_names, val) {
+                    Some(transport_options) => {
+                        for (name, options) in transport_options.iter() {
+                            for transport in &mut s.transports {
+                                if transport.name == *name {
+                                    transport.set_options(options.clone());
+                                }
+                            }
+                        }
+                    }
+                    None => (),
+                }
             }
             Err(error) => match error {
                 env::VarError::NotPresent => (),
@@ -111,8 +137,18 @@ impl Server {
         // Parse the list of IP addresses and ports each supported transport should listen on
         match env::var("TOR_PT_SERVER_BINDADDR") {
             Ok(val) => {
-                s.bind_addresses =
-                    crate::parsers::parse_bind_addresses(s.supported_transports.clone(), val)
+                let mut transport_names: Vec<String> = Vec::new();
+                for transport in &s.transports {
+                    transport_names.push(transport.name.clone());
+                }
+                let bind_addresses = parsers::parse_bind_addresses(transport_names, val);
+                for (name, address) in bind_addresses.iter() {
+                    for transport in &mut s.transports {
+                        if transport.name == *name {
+                            transport.set_bind_addr(*address);
+                        }
+                    }
+                }
             }
             Err(error) => match error {
                 env::VarError::NotPresent => (),
@@ -218,47 +254,34 @@ impl Server {
     /// advertised as supporting which the parent process actually wants you to initialize.
     ///
     /// You are expected to attempt to initialize each of these transports, and report
-    /// the success/failure by calling
-    /// `report_success` or `report_failure` with the name of the transport.
-    /// Once you've done this for all transports, you have to call `report_setup_done`.
-    pub fn get_transports_to_initialize(&self) -> Option<Vec<String>> {
+    /// the success/failure by calling the transport's `report_success` or `report_failure` methods.
+    /// Once you've done this for all transports, you have to call the server's `report_setup_done`.
+    pub fn get_transports_to_initialize(&mut self) -> Option<Vec<&mut ServerTransport>> {
         // TODO: Call `report_setup_done` automatically once all transports are ready/failed
-        return self.transports_to_enable.clone();
-    }
-
-    /// Calling this will notify the parent process that the pluggable transport `transport`
-    /// has been successfully initialized and is ready to accept clients on the address `bind_addr`.
-    ///
-    /// Via `options`, arbitrary key-value pairs can be passed to the parent process,
-    /// which can in turn pass them on to clients via tor's BridgeDB or another system.
-    pub fn report_success(
-        &self,
-        transport: String,
-        bind_addr: SocketAddr,
-        options: Option<BTreeMap<String, String>>,
-    ) {
-        match options {
-            None => println!("SMETHOD {} {}", transport, bind_addr),
-            Some(opts) => println!(
-                "SMETHOD {} {} ARGS:{}",
-                transport,
-                bind_addr,
-                Server::escape_and_format_opts(opts)
-            ),
+        let mut transports_to_enable: Vec<&mut ServerTransport> = Vec::new();
+        for transport in &mut self.transports {
+            if transport.get_should_enable() {
+                transports_to_enable.push(transport);
+            }
         }
-    }
-
-    /// Tells the parent process that the server for `transport_name`
-    /// could not be initialized successfully.
-    pub fn report_failure(&self, transport_name: String, error_msg: String) {
-        // TODO: Make report_success for same transport uncallable
-        // TODO: This should be done by creating and returning a `transport` object
-        println!("SMETHOD-ERROR {} {}", transport_name, error_msg);
+        if transports_to_enable.len() > 0 {
+            return Some(transports_to_enable);
+        } else {
+            return None;
+        }
     }
 
     /// Tells the parent process that the server
     /// has tried to enable all requested transports, and either succeeded or failed (and reported that for each transport).
+    ///
+    /// If this method is called before success/failure has been reported for each transport that
+    /// was to be enabled it will panic.
     pub fn report_setup_done(&self) {
+        for transport in &self.transports {
+            if !transport.status_reported {
+                panic!("Attempt to call report_setup_done() without first reporting status of all transports");
+            }
+        }
         println!("SMETHODS DONE");
     }
 
@@ -271,115 +294,15 @@ impl Server {
     }
 
     /// Returns the `path` to a directory
-    /// the parent process allows your pluggable transport to store files in.
+    /// the parent process allows your pluggable transport(s) to store files in.
     ///
-    /// Note that your transport should not store files anywhere else.
+    /// Note that your transport(s) should not store files anywhere else.
     pub fn get_transport_state_location(&self) -> path::PathBuf {
         return self.shared_config.transport_state_location.clone();
-    }
-
-    /// Returns the `SocketAddr` that the PT `transport` should listen for client
-    /// connections on.
-    ///
-    /// If the transport isn't among the transports the parent process has requested
-    /// your pluggable transport to serve, this will return `None`.
-    pub fn get_bind_address(&self, transport: String) -> Option<SocketAddr> {
-        // TODO: Be more explicit about error/panic
-        return self.bind_addresses[&transport].clone();
     }
 
     /// Writes a human-readable log message with severity `sev`.
     pub fn write_log_message(sev: log::Severity, msg: String) {
         println!("LOG SEVERITY={} MESSAGE={}", sev, msg);
     }
-
-    /// Writes a message describing the status of the transport in key-value pairs.
-    ///
-    /// This information is usually not parsed by the parent process, it merely serves to inform the user.
-    ///
-    /// If `transport` is not part of the transports which the parent process requested to enable,
-    /// this will panic.
-    pub fn write_status_message(&self, transport: String, messages: HashMap<String, String>) {
-        if !self
-            .transports_to_enable
-            .as_ref()
-            .unwrap()
-            .contains(&transport)
-        {
-            // TODO: Make this a method of `transport` and make this check obsolete
-            panic!(
-                "Attempt to write status message for unrequested transport {}",
-                transport
-            );
-        }
-        let mut concat_messages = String::new();
-        for (key, value) in messages {
-            concat_messages.push_str(&key);
-            concat_messages.push('=');
-            concat_messages.push_str(&value);
-            concat_messages.push(' ');
-        }
-        println!("STATUS TRANSPORT={} {}", transport, concat_messages);
-    }
-
-    fn escape_and_format_opts(input: BTreeMap<String, String>) -> String {
-        // The spec requires that extra arguments clients should know about
-        // (which are e.g. distributed on BridgeDB)
-        // be encoded in key=value pairs as K1=V1,K2=V2. All "=" and "," occurring in keys/values must be escaped with "\"
-        let mut result = String::new();
-        let mut i = 1;
-        let last = input.len();
-        for (key, value) in input {
-            let escaped_key = key.replace("=", r#"\="#).replace(",", r#"\,"#);
-            let escaped_value = value.replace("=", r#"\="#).replace(",", r#"\,"#);
-            result.push_str(&escaped_key);
-            result.push('=');
-            result.push_str(&escaped_value);
-            // Trailing comas are not allowed, so check how far into the iterator we are first
-            if i < last {
-                result.push(',');
-            }
-            i = i + 1;
-        }
-        return result;
-    }
-}
-
-// TESTS TESTS TESTS TESTS
-
-#[test]
-fn test_escape_and_format_opts_no_opts() {
-    let input: BTreeMap<String, String> = BTreeMap::new();
-    let expected_output = "";
-    assert_eq!(expected_output, Server::escape_and_format_opts(input));
-}
-#[test]
-fn test_escape_and_format_opts_single_opt() {
-    let mut input: BTreeMap<String, String> = BTreeMap::new();
-    input.insert("key1".to_string(), "value1".to_string());
-    let expected_output = "key1=value1";
-    assert_eq!(expected_output, Server::escape_and_format_opts(input));
-}
-#[test]
-fn test_escape_and_format_opts_multiple_opts() {
-    let mut input: BTreeMap<String, String> = BTreeMap::new();
-    input.insert("key1".to_string(), "value1".to_string());
-    input.insert("key2".to_string(), "value2".to_string());
-    let expected_output = "key1=value1,key2=value2";
-    assert_eq!(expected_output, Server::escape_and_format_opts(input));
-}
-#[test]
-fn test_escape_and_format_opts_single_opt_escaped() {
-    let mut input: BTreeMap<String, String> = BTreeMap::new();
-    input.insert(r#"key=1"#.to_string(), r#"value=1"#.to_string());
-    let expected_output = r#"key\=1=value\=1"#;
-    assert_eq!(expected_output, Server::escape_and_format_opts(input));
-}
-#[test]
-fn test_escape_and_format_opts_multiple_opts_escaped() {
-    let mut input: BTreeMap<String, String> = BTreeMap::new();
-    input.insert(r#"key,2"#.to_string(), r#"value,2"#.to_string());
-    input.insert(r#"key=1"#.to_string(), r#"value=1"#.to_string());
-    let expected_output = r#"key\=1=value\=1,key\,2=value\,2"#;
-    assert_eq!(expected_output, Server::escape_and_format_opts(input));
 }
