@@ -10,8 +10,6 @@ use crate::parsers;
 use crate::server_transport::ServerTransport;
 use crate::shared_config::SharedConfig;
 
-
-
 /// This object is a handle to allow interaction with the parent process by your server-side pluggable transport implementation(s).
 ///
 /// It provides methods for both retrieving configuration dictated by the parent process,
@@ -271,8 +269,6 @@ impl Server {
         println!("SMETHODS DONE");
     }
 
-
-
     /// Returns the `path` to a directory
     /// the parent process allows your pluggable transport(s) to store files in.
     ///
@@ -290,7 +286,18 @@ impl Server {
     /// the tor network.
     pub fn get_relay_dialer(&self) -> RelayDialer {
         // This is done to sort out some ownership issues
-        return RelayDialer{relay: self.destination.clone()};
+        return RelayDialer {
+            relay: self.destination.clone(),
+        };
+    }
+
+    /// Reports whether the parent expects your transport(s) to shut down when it closes stdin.
+    ///
+    /// If `true` is returned, you should follow this order, or your program won't shut down cleanly.
+    ///
+    /// If `false` is returned, the parent will send a `SIGTERM` and take care of killing the process by itself.
+    pub fn should_exit_on_stdin_close(&self) -> bool {
+        return self.shared_config.exit_on_stdin_close;
     }
 }
 

@@ -1,14 +1,13 @@
-use crate::log;
-use crate::shared_config::SharedConfig;
 use crate::client_transport::ClientTransport;
+use crate::log;
 use crate::parsers;
+use crate::shared_config::SharedConfig;
 use crate::upstream_proxy::UpstreamProxy;
 
 use std::clone::Clone;
 use std::collections::HashMap;
 use std::env;
 use std::path;
-
 
 /// This object is a handle to allow interaction with the parent process by your client-side pluggable transport implementation(s).
 ///
@@ -23,7 +22,7 @@ pub struct Client {
 
 impl Client {
     fn new(supported_transports: Vec<String>) -> Client {
-        let mut client =  Client {
+        let mut client = Client {
             shared_config: SharedConfig::new(),
             transports: Vec::new(),
             upstream_proxy_uri: None,
@@ -59,7 +58,7 @@ impl Client {
                                 }
                             }
                         }
-                    },
+                    }
                     None => panic!(
                         "Parent process didn't ask us to enable a transport we support, aborting!"
                     ),
@@ -161,6 +160,15 @@ impl Client {
             concat_messages.push(' ');
         }
         println!("STATUS TRANSPORT={} {}", transport, concat_messages);
+    }
+
+    /// Reports whether the parent expects your transport(s) to shut down when it closes stdin.
+    ///
+    /// If `true` is returned, you should follow this order, or your program won't shut down cleanly.
+    ///
+    /// If `false` is returned, the parent will send a `SIGTERM` and take care of killing the process by itself.
+    pub fn should_exit_on_stdin_close(&self) -> bool {
+        return self.shared_config.exit_on_stdin_close;
     }
 }
 
