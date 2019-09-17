@@ -1,36 +1,16 @@
+use std::io;
 use std::io::prelude::*;
+use std::net;
+use std::time;
 use std::{clone::Clone, env, fs, path};
 
+use crate::ext_orport;
 use crate::log;
 use crate::parsers;
 use crate::server_transport::ServerTransport;
 use crate::shared_config::SharedConfig;
 
-/// Represents the relay that the PT server forwards data to once it exits the transport's tunneling and is deobfuscated.
-#[derive(Clone)]
-pub enum DestinationRelay {
-    ORPort(String),
-    ExtORPort(String, String),
-}
 
-impl DestinationRelay {
-    /// Returns the address of the relay in the format host:port.
-    pub fn get_addr(&self) -> String {
-        match self {
-            DestinationRelay::ORPort(address) => return address.clone(),
-            DestinationRelay::ExtORPort(address, _) => return address.clone(),
-        }
-    }
-
-    /// Returns the cookie needed for connecting to a relay via the ExtORPort protocol.
-    /// If the relay is not an ExtORPort relay, this will be `None`.
-    pub fn get_cookie(&self) -> Option<String> {
-        match self {
-            DestinationRelay::ORPort(_) => return None,
-            DestinationRelay::ExtORPort(_, cookie) => return Some(cookie.clone()),
-        }
-    }
-}
 
 /// This object is a handle to allow interaction with the parent process by your server-side pluggable transport implementation(s).
 ///
@@ -163,8 +143,10 @@ impl Server {
         // Parse out which entry node/relay to forward deobfuscated traffic to
         match env::var("TOR_PT_ORPORT") {
             Ok(val) => {
-                have_destination = true;
-                s.destination = DestinationRelay::ORPort(val.clone());
+                if val != "" {
+                    have_destination = true;
+                    s.destination = DestinationRelay::ORPort(val.clone());
+                }
             }
             Err(error) => match error {
                 env::VarError::NotPresent => (), // Is handled while parsing TOR_PT_EXTENDED_SERVER_PORT
@@ -179,12 +161,14 @@ impl Server {
         let mut extended_orport = String::new();
         match env::var("TOR_PT_EXTENDED_SERVER_PORT") {
             Ok(val) => {
-                if have_destination {
-                    println!("ENV-ERROR both TOR_PT_ORPORT and TOR_PT_EXTENDED_SERVER_PORT set");
-                    panic!("Parent process specified both ORPort and extended ORPort. Therefore, we don't know which one to send traffic to!");
-                } else {
-                    extended_orport = val;
-                }
+                    if val != "" {
+                        extended_orport = val;
+                    } else {
+                        if !have_destination {
+                            println!("ENV-ERROR neither TOR_PT_ORPORT nor TOR_PT_EXTENDED_SERVER_PORT set in server mode");
+                            panic!("Parent process did not tell us where we should send traffic to!");
+                        }
+                    }
             },
             Err(error) => match error {
                 env::VarError::NotPresent => {
@@ -218,8 +202,8 @@ impl Server {
                         }
                     }
 
-                    let mut content = String::new();
-                    match f.read_to_string(&mut content) {
+                    let mut content: Vec<u8> = Vec::new();
+                    match f.read_to_end(&mut content) {
                         Ok(_) => (),
                         Err(error2) => {
                             println!(
@@ -232,6 +216,8 @@ impl Server {
                             );
                         }
                     }
+                    // We prefer the extended ORPort over the regular ORPort,
+                    // therefore we overwrite it unconditionally here
                     s.destination = DestinationRelay::ExtORPort(extended_orport, content);
                 }
                 Err(error) => match error {
@@ -285,13 +271,7 @@ impl Server {
         println!("SMETHODS DONE");
     }
 
-    /// Returns the (extended) ORPort-compliant destination for all client traffic,
-    /// which is where your server should forward traffic to.
-    ///
-    /// In tor's case, this is usually a tor relay.
-    pub fn get_destination_relay(&self) -> DestinationRelay {
-        return self.destination.clone();
-    }
+
 
     /// Returns the `path` to a directory
     /// the parent process allows your pluggable transport(s) to store files in.
@@ -301,8 +281,67 @@ impl Server {
         return self.shared_config.transport_state_location.clone();
     }
 
-    /// Writes a human-readable log message with severity `sev`.
+    /// Passes along a human-readable log message with severity `sev` to the parent.
     pub fn write_log_message(sev: log::Severity, msg: String) {
         println!("LOG SEVERITY={} MESSAGE={}", sev, msg);
     }
+
+    /// Returns an object which allows for dialing the relay which actually forwards traffic to
+    /// the tor network.
+    pub fn get_relay_dialer(&self) -> RelayDialer {
+        // This is done to sort out some ownership issues
+        return RelayDialer{relay: self.destination.clone()};
+    }
+}
+
+/// An object which allows establishing a connection to a relay
+/// which is the entry point of traffic into the tor network.
+#[derive(Clone)]
+pub struct RelayDialer {
+    relay: DestinationRelay,
+}
+
+impl RelayDialer {
+    /// Returns an opened `net::TcpStream` to the (extended) ORPort-compliant destination for all client traffic,
+    /// which is where your server should forward traffic to.
+    ///
+    /// In tor's case, this is usually a tor relay.
+    pub fn dial(
+        &self,
+        transport: &ServerTransport,
+        client_addr: net::SocketAddr,
+    ) -> Result<net::TcpStream, io::Error> {
+        let mut stream;
+        match &self.relay {
+            DestinationRelay::ORPort(addr) => {
+                // ORPort is just for forwarding plain TCP traffic
+                // TODO: Timeout
+                stream = net::TcpStream::connect(addr)?;
+            }
+            DestinationRelay::ExtORPort(addr, cookie) => {
+                // Extended ORPort requires to negotiate a connection first
+                stream = net::TcpStream::connect(addr)?;
+                // As the negotiation requires sending data, we set a reasonable timeout
+                stream.set_read_timeout(Some(time::Duration::from_secs(20)))?;
+                stream.set_write_timeout(Some(time::Duration::from_secs(20)))?;
+                ext_orport::negotiate_connection(
+                    cookie.to_vec(),
+                    transport.name.clone(),
+                    client_addr,
+                    &mut stream,
+                )?;
+                // Remove the timeout again, whether to apply a new one is up to the consumer
+                stream.set_read_timeout(None)?;
+                stream.set_write_timeout(None)?;
+            }
+        }
+        return Ok(stream);
+    }
+}
+
+/// Represents the relay that the PT server forwards data to once it exits the transport's tunneling and is deobfuscated.
+#[derive(Clone)]
+enum DestinationRelay {
+    ORPort(String),
+    ExtORPort(String, Vec<u8>),
 }

@@ -9,13 +9,14 @@ mod server_transport;
 mod shared_config;
 mod upstream_proxy;
 mod tor_proxy;
+mod ext_orport;
 
 pub use client::Client;
 pub use tor_proxy::TorProxyTypes;
 pub use upstream_proxy::UpstreamProxy;
 pub use client_transport::ClientTransport;
 pub use log::Severity;
-pub use server::{DestinationRelay, Server};
+pub use server::{RelayDialer, Server};
 pub use server_transport::ServerTransport;
 
 /// This enum represents the sides of the connection that the parent process
