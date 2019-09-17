@@ -4,6 +4,9 @@
 
 The API of this library is heavily inspired by [pyptlib](https://git.torproject.org/pluggable-transports/pyptlib.git).
 
+## WARNING
+*This is experimental code. Do not rely on it for security, and expect it to blow up. You have been warned.*
+
 ## Usage
 
 ### What onion_peel expects from your application
@@ -50,3 +53,22 @@ Quoting section 2 of the pluggable transports specification:
 ### Examples
 
 Refer to `examples/simple_forward.rs` to see how to implement a simple pluggable transport client and server that just forwards traffic without modification.
+
+### TODO
+
+* [ ] Error handling
+* [ ] Examples
+  * [ ] Simple traffic forwarder (no obfuscation)
+  * [ ] Primitive HTTP stenography
+  * [ ] ROT13
+* [ ] Rustdocs
+* [ ] Improved README
+* [ ] Tests
+  * [ ] ExtORPort wrong server HMAC
+  * [ ] Unreachable (ext)ORPort
+  * [ ] Missing (ext)ORPort env var
+  * [ ] Unreadable extORPort cookie
+  * [ ] Invalid extORPort cookie
+  * [ ] End-to-end tests using the examples and real tor binaries
+* [X] Extended ORPort protocol
+* [ ] TransportControlPort protocol
