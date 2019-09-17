@@ -58,7 +58,7 @@ Refer to `examples/simple_forward.rs` to see how to implement a simple pluggable
 
 * [ ] Error handling
 * [ ] Examples
-  * [ ] Simple traffic forwarder (no obfuscation)
+  * [X] Simple traffic forwarder (no obfuscation)
   * [ ] Primitive HTTP stenography
   * [ ] ROT13
 * [ ] Rustdocs
@@ -72,3 +72,6 @@ Refer to `examples/simple_forward.rs` to see how to implement a simple pluggable
   * [ ] End-to-end tests using the examples and real tor binaries
 * [X] Extended ORPort protocol
 * [ ] TransportControlPort protocol
+* [ ] Support for reading client secrets from SOCKS auth
+* [X] Support running in managed mode
+* [ ] Support running in freestanding mode
