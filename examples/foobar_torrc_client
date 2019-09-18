@@ -1,0 +1,6 @@
+# This tor config file demonstrates how to use the example pluggable transport with tor.
+DataDirectory C:/Users/user/dev/temp/tor # Pick one that suits you so we don't conflict with the server
+UseBridges 1 # Tell tor to use our PT bridge
+ClientTransportPlugin foobar exec target/release/examples/foobar # Add .exe on windows
+Bridge foobar 127.0.0.1:1234 # This is the address that the forwarder server listens on
+SOCKSPort 9052 # This is the port that tor clients such as tor browser should connect to

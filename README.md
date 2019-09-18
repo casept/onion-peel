@@ -59,8 +59,7 @@ Refer to `examples/simple_forward.rs` to see how to implement a simple pluggable
 * [ ] Error handling
 * [ ] Examples
   * [X] Simple traffic forwarder (no obfuscation)
-  * [ ] Primitive HTTP stenography
-  * [ ] ROT13
+  * [X] Simple obfuscator
 * [ ] Rustdocs
 * [ ] Improved README
 * [ ] Tests

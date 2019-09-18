@@ -1,0 +1,9 @@
+# This tor config file demonstrates how to use the example pluggable transport with tor.
+PublishServerDescriptor 0     # do not publish server descriptor (as example servers are temporary and often not globally reachable)
+ServerTransportPlugin foobar exec target/release/examples/foobar # enable the transport (add .exe on windows)
+BridgeRelay 1                 # be a bridge
+ORPort localhost:9050         # Standart, unauthenticated ORPort (only used by onion_peel if the ExtORPort is not available)
+ExtORPort localhost:9051      # Authenticated ORPort, used by onion_peel when available
+SocksPort 0                   # prevents tor from being used as a client
+ExitPolicy reject *:*         # prevents us from connecting to non-relays
+ExitPolicy reject6 *:*        # same for IPv6
