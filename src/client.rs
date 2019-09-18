@@ -3,6 +3,7 @@ use crate::log;
 use crate::parsers;
 use crate::shared_config::SharedConfig;
 use crate::upstream_proxy::UpstreamProxy;
+use crate::init_error::InitError;
 
 use std::clone::Clone;
 use std::collections::HashMap;
@@ -35,11 +36,13 @@ impl Client {
     }
 
     /// Reads the parent processes desired configuration for the client end of your pluggable transport(s).
-    ///
-    /// This will panic if a non-recoverable protocol violation by the parent process occurs.
-    pub fn init(supported_transports: Vec<String>) -> Client {
+    /// If the parent didn't request to enable any transports we support, instead of the `Client` `None` will be returned.
+    /// 
+    /// An error is returned if the parent process violates the pluggable transport specification.
+    /// In that case, you MUST terminate your program (or be in violation of the spec).
+    pub fn init(supported_transports: Vec<String>) -> Result<Option<Client>, InitError> {
         let mut c = Client::new(supported_transports);
-        c.shared_config = SharedConfig::init();
+        c.shared_config = SharedConfig::init()?;
 
         // Check which transports the parent process wants us to enable
         match env::var("TOR_PT_CLIENT_TRANSPORTS") {
@@ -58,16 +61,14 @@ impl Client {
                                 }
                             }
                         }
-                    }
-                    None => panic!(
-                        "Parent process didn't ask us to enable a transport we support, aborting!"
-                    ),
+                    },
+                    None => return Ok(None),
                 }
+            },
+            Err(e) => match e {
+                env::VarError::NotPresent => return Err(InitError::MissingEnvVarError("TOR_PT_CLIENT_TRANSPORTS".to_string())),
+                env::VarError::NotUnicode(_) => return Err(InitError::ParserError(format!("Could not parse list of transports requested by parent process: {}",e))),
             }
-            Err(e) => panic!(
-                "Could not parse list of transports requested by parent process: {}",
-                e
-            ),
         }
 
         // Check whether the transport should use a proxy for upstream traffic
@@ -75,14 +76,14 @@ impl Client {
             Ok(val) => c.upstream_proxy_uri = Some(val.parse().unwrap()),
             Err(error) => match error {
                 env::VarError::NotPresent => (),
-                env::VarError::NotUnicode(_) => panic!(
-                    "Could not read proxy URI specified by parent process: {}",
-                    error
-                ),
+                env::VarError::NotUnicode(_) => return Err(InitError::ParserError(
+                    format!("Could not read proxy URI specified by parent process: {}",
+                    error)
+                )),
             },
         }
 
-        return c;
+        return Ok(Some(c));
     }
 
     /// Returns the upstream proxy that your transport(s) must tunnel all traffic through.
@@ -140,7 +141,7 @@ impl Client {
         println!("CMETHODS DONE");
     }
 
-    /// Writes a human-readable log message with severity `sev`.
+    /// Passes along a human-readable log message with severity `sev` to the parent.
     pub fn write_log_message(sev: log::Severity, msg: String) {
         println!("LOG SEVERITY={} MESSAGE={}", sev, msg);
     }
@@ -166,7 +167,7 @@ impl Client {
     ///
     /// If `true` is returned, you should follow this order, or your program won't shut down cleanly.
     ///
-    /// If `false` is returned, the parent will send a `SIGTERM` and take care of killing the process by itself.
+    /// If `false` is returned, the parent will send a `SIGTERM` and take care of killing your process by itself.
     pub fn should_exit_on_stdin_close(&self) -> bool {
         return self.shared_config.exit_on_stdin_close;
     }

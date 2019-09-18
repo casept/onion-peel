@@ -10,6 +10,7 @@ mod shared_config;
 mod upstream_proxy;
 mod tor_proxy;
 mod ext_orport;
+mod init_error;
 
 pub use client::Client;
 pub use tor_proxy::TorProxyTypes;
@@ -18,6 +19,7 @@ pub use client_transport::ClientTransport;
 pub use log::Severity;
 pub use server::{RelayDialer, Server};
 pub use server_transport::ServerTransport;
+pub use init_error::InitError;
 
 /// This enum represents the sides of the connection that the parent process
 /// may initialize your pluggable transport on.

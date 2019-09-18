@@ -23,10 +23,22 @@ fn main() {
     let side = onion_peel::get_side();
     match side {
         onion_peel::ProtoSide::ClientSide => {
-            client(onion_peel::Client::init(vec!["foobar".to_string()]))
-        }
+            match onion_peel::Client::init(vec!["foobar".to_string()]) {
+                Ok(val1) => match val1 {
+                    Some(c) => client(c),
+                    None => panic!("Failed to init PT client: parent did not tell us to enable any transports"),
+                },
+                Err(e) => panic!("Failed to init PT client: {}", e),
+            }
+        },
         onion_peel::ProtoSide::ServerSide => {
-            server(onion_peel::Server::init(vec!["foobar".to_string()]))
+            match onion_peel::Server::init(vec!["foobar".to_string()]) {
+                Ok(val1) => match val1 {
+                    Some(s) => server(s),
+                    None => panic!("Failed to init PT server: parent did not tell us to enable any transports"),
+                },
+                Err(e) => panic!("Failed to init PT server: {}", e),
+            }
         }
     }
 }
