@@ -13,4 +13,4 @@ opt-level = 0
 debug = true
 
 [dev-dependencies]
-socks5_frontend = { path = "../socks5_frontend"}
+socks5_frontend = { git = "https://github.com/casept/socks5_frontend"}
