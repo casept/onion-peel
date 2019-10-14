@@ -83,7 +83,7 @@ impl ServerTransport {
             panic!("Attempt to report transport status twice");
         }
         match options {
-            None => println!("SMETHOD {} {}", self.name, bind_addr),
+            None => println!("SMETHOD {} {}", self.get_name(), bind_addr),
             Some(opts) => println!(
                 "SMETHOD {} {} ARGS:{}",
                 self.name,
@@ -100,11 +100,11 @@ impl ServerTransport {
     /// `error_msg` is a human-readable description of the problem.
     ///
     /// If success or failure have already been reported, this will panic.
-    pub fn report_failure(&mut self, transport_name: String, error_msg: String) {
+    pub fn report_failure(&mut self, error_msg: String) {
         if self.status_reported {
             panic!("Attempt to report transport status twice");
         }
-        println!("SMETHOD-ERROR {} {}", transport_name, error_msg);
+        println!("SMETHOD-ERROR {} {}", self.get_name(), error_msg);
         self.status_reported = true;
     }
 

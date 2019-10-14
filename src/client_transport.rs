@@ -28,7 +28,7 @@ impl ClientTransport {
         if self.status_reported {
             panic!("Attempt to report transport status twice");
         }
-        println!("CMETHOD {} {} {}", self.name, proxy_type, bind_addr);
+        println!("CMETHOD {} {} {}", self.get_name(), proxy_type, bind_addr);
         self.status_reported = true;
     }
 
@@ -42,7 +42,7 @@ impl ClientTransport {
         if self.status_reported {
             panic!("Attempt to report transport status twice");
         }
-        println!("CMETHOD-ERROR {} {}", self.name, error_msg);
+        println!("CMETHOD-ERROR {} {}", self.get_name(), error_msg);
         self.status_reported = true;
     }
 
