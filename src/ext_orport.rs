@@ -64,7 +64,7 @@ fn read_auth_types(stream: &mut net::TcpStream) -> Result<Vec<u8>, io::Error> {
     // Without an ORPort connection traffic can't be forwarded and the server is useless,
     // therefore a panic is probably appropriate
     // TODO: Reconsider
-    if auth_types.len() == 0 {
+    if auth_types.is_empty() {
         panic!("Failed extORPort authentication: Server didn't send any auth methods");
     }
 
@@ -91,7 +91,7 @@ fn safe_cookie_handshake(
     let mut i = 0;
     for byte in cookie_slice {
         cookie[i] = *byte;
-        i = i + 1;
+        i += 1;
     }
 
     // Perform a handshake to mutually authenticate client and server
@@ -166,7 +166,7 @@ fn compute_client_hash(cookie: [u8; 32], server_nonce: [u8; 32], client_nonce: [
         let mut i = 0;
         for byte in tag {
             tag_array[i] = *byte;
-            i = i + 1;
+            i += 1;
         }
         return tag_array;
     }
@@ -246,12 +246,12 @@ impl ExtORMessage {
 
         if ignore_body {
             return Ok(ExtORMessage {
-                command: command,
+                command,
                 body: None,
             });
         } else {
             return Ok(ExtORMessage {
-                command: command,
+                command,
                 body: Some(body_buf),
             });
         }

@@ -13,7 +13,7 @@ pub struct ClientTransport {
 impl ClientTransport {
     pub(crate) fn new(name: String) -> ClientTransport {
         return ClientTransport {
-            name: name,
+            name,
             should_enable: false,
             status_reported: false,
         };

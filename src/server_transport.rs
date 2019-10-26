@@ -14,7 +14,7 @@ pub struct ServerTransport {
 impl ServerTransport {
     pub(crate) fn new(name: String) -> ServerTransport {
         return ServerTransport {
-            name: name,
+            name,
             should_enable: false,
             status_reported: false,
             options: None,
