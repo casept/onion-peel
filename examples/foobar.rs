@@ -26,16 +26,20 @@ fn main() {
             match onion_peel::Client::init(vec!["foobar".to_string()]) {
                 Ok(val1) => match val1 {
                     Some(c) => client(c),
-                    None => panic!("Failed to init PT client: parent did not tell us to enable any transports"),
+                    None => panic!(
+                        "Failed to init PT client: parent did not tell us to enable any transports"
+                    ),
                 },
                 Err(e) => panic!("Failed to init PT client: {}", e),
             }
-        },
+        }
         onion_peel::ProtoSide::ServerSide => {
             match onion_peel::Server::init(vec!["foobar".to_string()]) {
                 Ok(val1) => match val1 {
                     Some(s) => server(s),
-                    None => panic!("Failed to init PT server: parent did not tell us to enable any transports"),
+                    None => panic!(
+                        "Failed to init PT server: parent did not tell us to enable any transports"
+                    ),
                 },
                 Err(e) => panic!("Failed to init PT server: {}", e),
             }
@@ -86,7 +90,7 @@ fn client(mut client: onion_peel::Client) {
                     match stdin.read_line(&mut line_buffer) {
                         Ok(0) => break,
                         Ok(_) => (),
-                        Err(e) => panic!(e),
+                        Err(e) => panic!("Failed to check for EOF: {}", e),
                     }
                     line_buffer.clear();
                 }
@@ -145,7 +149,7 @@ fn client_bind(addr: net::SocketAddr) {
                     thread::spawn(move || {
                         // Encode each byte
                         let mut buf: [u8; 1] = [0];
-                        let mut result_buf: [u8; 24] = [0; 24];
+                        let mut result_buf: [u8; 24];
                         loop {
                             client_stream_1.read_exact(&mut buf).unwrap();
                             result_buf = encode(buf[0]);
@@ -217,7 +221,7 @@ fn server(mut server: onion_peel::Server) {
                     match stdin.read_line(&mut line_buffer) {
                         Ok(0) => break,
                         Ok(_) => (),
-                        Err(e) => panic!(e),
+                        Err(e) => panic!("Failed to check for EOF: {}", e),
                     }
                     line_buffer.clear();
                 }
@@ -271,7 +275,7 @@ fn server_bind(
                     thread::spawn(move || {
                         // Encode each byte
                         let mut buf: [u8; 1] = [0];
-                        let mut result_buf: [u8; 24] = [0; 24];
+                        let mut result_buf: [u8; 24];
                         loop {
                             relay_stream_2.read_exact(&mut buf).unwrap();
                             result_buf = encode(buf[0]);

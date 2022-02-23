@@ -1,12 +1,11 @@
 [package]
 name = "onion_peel"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["casept <davids.paskevics@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 ring = "~0"
-byteorder = "~1"
 
 [profile.dev]
 opt-level = 0

@@ -113,19 +113,18 @@ impl ServerTransport {
         // (which are e.g. distributed on BridgeDB)
         // be encoded in key=value pairs as K1=V1,K2=V2. All "=" and "," occurring in keys/values must be escaped with "\"
         let mut result = String::new();
-        let mut i = 1;
-        let last = input.len();
-        for (key, value) in input {
+        for (i, (key, value)) in input.iter().enumerate() {
             let escaped_key = key.replace("=", r#"\="#).replace(",", r#"\,"#);
             let escaped_value = value.replace("=", r#"\="#).replace(",", r#"\,"#);
+
             result.push_str(&escaped_key);
             result.push('=');
             result.push_str(&escaped_value);
+
             // Trailing comas are not allowed, so check how far into the iterator we are first
-            if i < last {
+            if i < (input.len() - 1) {
                 result.push(',');
             }
-            i = i + 1;
         }
         return result;
     }
@@ -143,6 +142,7 @@ mod tests {
             ServerTransport::escape_and_format_opts(input)
         );
     }
+
     #[test]
     fn test_escape_and_format_opts_single_opt() {
         let mut input: BTreeMap<String, String> = BTreeMap::new();
@@ -153,36 +153,39 @@ mod tests {
             ServerTransport::escape_and_format_opts(input)
         );
     }
+
     #[test]
     fn test_escape_and_format_opts_multiple_opts() {
         let mut input: BTreeMap<String, String> = BTreeMap::new();
         input.insert("key1".to_string(), "value1".to_string());
         input.insert("key2".to_string(), "value2".to_string());
         let expected_output = "key1=value1,key2=value2";
-        assert_eq!(
-            expected_output,
-            ServerTransport::escape_and_format_opts(input)
-        );
+
+        let output = ServerTransport::escape_and_format_opts(input);
+
+        assert_eq!(output, expected_output);
     }
+
     #[test]
     fn test_escape_and_format_opts_single_opt_escaped() {
         let mut input: BTreeMap<String, String> = BTreeMap::new();
         input.insert(r#"key=1"#.to_string(), r#"value=1"#.to_string());
         let expected_output = r#"key\=1=value\=1"#;
-        assert_eq!(
-            expected_output,
-            ServerTransport::escape_and_format_opts(input)
-        );
+
+        let output = ServerTransport::escape_and_format_opts(input);
+
+        assert_eq!(output, expected_output);
     }
+
     #[test]
     fn test_escape_and_format_opts_multiple_opts_escaped() {
         let mut input: BTreeMap<String, String> = BTreeMap::new();
-        input.insert(r#"key,2"#.to_string(), r#"value,2"#.to_string());
         input.insert(r#"key=1"#.to_string(), r#"value=1"#.to_string());
-        let expected_output = r#"key\=1=value\=1,key\,2=value\,2"#;
-        assert_eq!(
-            expected_output,
-            ServerTransport::escape_and_format_opts(input)
-        );
+        input.insert(r#"key,2"#.to_string(), r#"value,2"#.to_string());
+        let expected_output = r#"key\,2=value\,2,key\=1=value\=1"#;
+
+        let output = ServerTransport::escape_and_format_opts(input);
+
+        assert_eq!(output, expected_output);
     }
 }

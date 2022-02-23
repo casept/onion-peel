@@ -87,7 +87,7 @@ fn client(mut client: onion_peel::Client) {
                     match stdin.read_line(&mut line_buffer) {
                         Ok(0) => break,
                         Ok(_) => (),
-                        Err(e) => panic!(e),
+                        Err(e) => panic!("Failed to check for EOF: {}", e),
                     }
                     line_buffer.clear();
                 }
@@ -201,7 +201,7 @@ fn server(mut server: onion_peel::Server) {
                     match stdin.read_line(&mut line_buffer) {
                         Ok(0) => break,
                         Ok(_) => (),
-                        Err(e) => panic!(e),
+                        Err(e) => panic!("Failed to check for EOF: {}", e),
                     }
                     line_buffer.clear();
                 }

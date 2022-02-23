@@ -3,12 +3,10 @@ use std::io;
 use std::io::prelude::*;
 use std::net;
 
-use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 use ring::{hmac, rand};
 
 const SAFE_COOKIE: u8 = 1;
 const NO_SUPPORTED_METHODS: u8 = 0;
-
 
 // Status codes for ExtORPort cookie auth
 const STATUS_SUCCESS: u8 = 1;
@@ -145,7 +143,11 @@ fn verify_server_hash(
     }
 }
 
-fn compute_client_hash(cookie: [u8; 32], server_nonce: [u8; 32], client_nonce: [u8; 32]) -> [u8; 32] {
+fn compute_client_hash(
+    cookie: [u8; 32],
+    server_nonce: [u8; 32],
+    client_nonce: [u8; 32],
+) -> [u8; 32] {
     // HMAC-SHA256(CookieString, "ExtORPort authentication client-to-server hash" | ClientNonce | ServerNonce)
     let parts = [
         "ExtORPort authentication client-to-server hash".as_bytes(),
@@ -239,7 +241,9 @@ impl ExtORMessage {
         }
 
         // Read the length of message to follow (requires endianess conversion)
-        let body_len = stream.read_u16::<NetworkEndian>()?;
+        let mut body_len_bytes: [u8; 2] = [0; 2];
+        stream.read_exact(&mut body_len_bytes)?;
+        let body_len = u16::from_be_bytes(body_len_bytes);
         // Read the message itself
         let mut body_buf: Vec<u8> = vec![0xDE; body_len.try_into().unwrap()];
         stream.read_exact(&mut body_buf)?;
@@ -269,7 +273,8 @@ impl ExtORMessage {
             Some(val) => body_len = val.len().try_into().unwrap(),
             None => body_len = 0,
         }
-        stream.write_u16::<NetworkEndian>(body_len)?;
+        let body_len_bytes: [u8; 2] = u16::to_be_bytes(body_len);
+        stream.write_all(&body_len_bytes)?;
 
         // Send the body
         if body_len > 0 {

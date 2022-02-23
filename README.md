@@ -5,6 +5,7 @@
 The API of this library is heavily inspired by [pyptlib](https://git.torproject.org/pluggable-transports/pyptlib.git).
 
 ## WARNING
+
 *This is experimental code. Do not rely on it for security, and expect it to blow up. You have been warned.*
 
 ## Usage
@@ -19,7 +20,7 @@ The API of this library is heavily inspired by [pyptlib](https://git.torproject.
 
 Quoting section 2 of the pluggable transports specification:
 
-```
+```plaintext
      +------------+                    +---------------------------+
      | Client App +-- Local Loopback --+ PT Client (SOCKS Proxy)   +--+
      +------------+                    +---------------------------+  |
